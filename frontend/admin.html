@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard - Feedback</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; padding: 20px; }
+        .stat-card { border-radius: 10px; color: white; padding: 20px; }
+        .bg-positive { background-color: #28a745; }
+        .bg-negative { background-color: #dc3545; }
+        .bg-neutral { background-color: #ffc107; color: black; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="mb-4">📊 Feedback Dashboard</h1>
+
+    <div class="row mb-4 text-center">
+        <div class="col-md-4">
+            <div class="stat-card bg-positive">
+                <h3>Positive</h3>
+                <h1 id="countPos">0</h1>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card bg-neutral">
+                <h3>Neutral/Mixed</h3>
+                <h1 id="countNeu">0</h1>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card bg-negative">
+                <h3>Negative</h3>
+                <h1 id="countNeg">0</h1>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn btn-primary mb-3" onclick="loadData()">🔄 Refresh Data</button>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Feedback Text</th>
+                        <th>Sentiment</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="4" class="text-center">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function loadData() {
+        try {
+            // 1. Fetch data from your backend
+            const response = await fetch('http://localhost:3000/api/feedback');
+            const data = await response.json();
+
+            // 2. Calculate Stats
+            let pos = 0, neg = 0, neu = 0;
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = ''; // Clear table
+
+            // 3. Loop through data and build table rows
+            data.forEach(item => {
+                // Update counters
+                if (item.sentiment === 'POSITIVE') pos++;
+                else if (item.sentiment === 'NEGATIVE') neg++;
+                else neu++;
+
+                // Create row
+                const row = `<tr>
+                    <td>${new Date(item.timestamp).toLocaleTimeString()}</td>
+                    <td>${item.text}</td>
+                    <td><span class="badge ${getBadgeColor(item.sentiment)}">${item.sentiment}</span></td>
+                    <td>${(item.confidence[item.sentiment.charAt(0) + item.sentiment.slice(1).toLowerCase()] * 100).toFixed(1)}%</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+
+            // 4. Update Stat Cards
+            document.getElementById('countPos').innerText = pos;
+            document.getElementById('countNeg').innerText = neg;
+            document.getElementById('countNeu').innerText = neu;
+
+        } catch (error) {
+            console.error(error);
+            alert("Failed to load data!");
+        }
+    }
+
+    function getBadgeColor(sentiment) {
+        if (sentiment === 'POSITIVE') return 'bg-success';
+        if (sentiment === 'NEGATIVE') return 'bg-danger';
+        return 'bg-warning text-dark';
+    }
+
+    // Load data automatically when page opens
+    loadData();
+</script>
+
+</body>
+</html>
