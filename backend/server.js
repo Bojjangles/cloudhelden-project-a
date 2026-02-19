@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { ComprehendClient, DetectSentimentCommand } = require("@aws-sdk/client-comprehend");
+const { ComprehendClient, DetectSentimentCommand, DetectKeyPhrasesCommand } = require("@aws-sdk/client-comprehend");
 
 const app = express();
 const port = 3000;
@@ -14,7 +14,7 @@ app.use(bodyParser.json());
 
 // Initialize AWS Comprehend Client
 // It automatically looks for credentials in your ~/.aws/credentials file!
-const comprehend = new ComprehendClient({ region: "eu-central-1" }); // Or your preferred region
+const comprehend = new ComprehendClient({ region: "eu-central-1" }); 
 
 // In-memory "Database" (Just for today!)
 const feedbackStore = [];
@@ -24,7 +24,7 @@ app.get('/', (req, res) => {
     res.send('Backend is running and ready to analyze emotions! 🚀');
 });
 
-// Route 2: Receive Feedback & Analyze Sentiment
+// Route 2: Receive Feedback & Analyze Sentiment + Keywords
 app.post('/api/feedback', async (req, res) => {
     const { text } = req.body;
 
@@ -36,25 +36,36 @@ app.post('/api/feedback', async (req, res) => {
 
     try {
         // 1. Ask AWS: "How does this text feel?"
-        const command = new DetectSentimentCommand({
+        const sentimentCommand = new DetectSentimentCommand({
             LanguageCode: "en", // or "de" for German
             Text: text
         });
-        const response = await comprehend.send(command);
+        const sentimentResponse = await comprehend.send(sentimentCommand);
 
-        // 2. Create the record
+        // 2. Ask AWS: "What are the keywords/phrases?"
+        const keyPhrasesCommand = new DetectKeyPhrasesCommand({
+            LanguageCode: "en",
+            Text: text
+        });
+        const keyPhrasesResponse = await comprehend.send(keyPhrasesCommand);
+
+        // Extract just the text of the keywords into a clean array
+        const keywords = keyPhrasesResponse.KeyPhrases.map(phrase => phrase.Text);
+
+        // 3. Create the record
         const feedbackEntry = {
             id: Date.now(),
             text: text,
-            sentiment: response.Sentiment, // POSITIVE, NEGATIVE, NEUTRAL, MIXED
-            confidence: response.SentimentScore,
+            sentiment: sentimentResponse.Sentiment, // POSITIVE, NEGATIVE, NEUTRAL, MIXED
+            confidence: sentimentResponse.SentimentScore,
+            keywords: keywords,
             timestamp: new Date()
         };
 
-        // 3. Save to our "fake" database
+        // 4. Save to our "fake" database
         feedbackStore.push(feedbackEntry);
 
-        console.log("Result:", response.Sentiment);
+        console.log("Result:", sentimentResponse.Sentiment, "| Keywords:", keywords);
         res.json({ success: true, data: feedbackEntry });
 
     } catch (error) {
