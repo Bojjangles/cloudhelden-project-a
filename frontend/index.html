@@ -65,7 +65,8 @@
             if (data.success) {
                 // 3. Show Result
                 const sentiment = data.data.sentiment;
-                const score = (data.data.confidence[sentiment.charAt(0) + sentiment.slice(1).toLowerCase()] * 100).toFixed(2);
+                sentimentResult.innerText = sentiment;
+                confidenceScore.innerText = "Analyzed"; // Since server doesn't send score yet
 
                 sentimentResult.innerText = sentiment;
                 confidenceScore.innerText = score;
