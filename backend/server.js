@@ -13,7 +13,10 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Initialize AWS Comprehend
-const comprehend = new ComprehendClient({ region: "eu-north-1" }); 
+const comprehend = new ComprehendClient({ 
+    region: "eu-north-1",
+    useFipsEndpoint: false
+});
 
 // Initialize PostgreSQL Pool using Environment Variables
 const pool = new Pool({
