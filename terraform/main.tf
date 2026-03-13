@@ -39,9 +39,8 @@ module "vpc" {
 }
 
 module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.0"
-
+  source          = "terraform-aws-modules/eks/aws"
+  version         = "~> 20.0"
   cluster_name    = "project-a-cluster"
   cluster_version = "1.31"
 
@@ -53,17 +52,20 @@ module "eks" {
 
   eks_managed_node_groups = {
     standard_nodes = {
-      min_size     = 0
-      max_size     = 4
-      desired_size = 2
+      min_size       = 0
+      max_size       = 4
+      desired_size   = 2
+      instance_types = ["t3.small"]
 
-      instance_types = ["t3.small"] 
+      # This gives nodes internet access to talk to Comprehend
+      enable_public_ip = true 
+
       iam_role_additional_policies = {
         ComprehendAccess = "arn:aws:iam::aws:policy/ComprehendReadOnly"
       }
     }
-  }
-}
+  } # Closes eks_managed_node_groups
+}   # Closes module "eks"
 
 # 1. Create a DB Subnet Group (Required for RDS in a VPC)
 resource "aws_db_subnet_group" "rds" {

@@ -47,13 +47,14 @@
             return;
         }
 
-        // 1. Show "Loading..."
+        // 1. Show "Loading..." state
         sentimentResult.innerText = "Analyzing...";
+        confidenceScore.innerText = "--";
         resultArea.style.display = 'block';
         resultArea.className = 'mt-4 alert alert-info text-center';
 
         try {
-            // 2. Call your Backend using the relative path
+            // 2. Call your Backend using the clean, relative path
             const response = await fetch('/api/feedback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -68,16 +69,15 @@
                 sentimentResult.innerText = sentiment;
                 confidenceScore.innerText = "Analyzed"; 
 
-                // Change color based on sentiment
+                // Change UI color based on sentiment
                 if (sentiment === "POSITIVE") resultArea.className = 'mt-4 alert alert-success text-center';
                 else if (sentiment === "NEGATIVE") resultArea.className = 'mt-4 alert alert-danger text-center';
                 else resultArea.className = 'mt-4 alert alert-warning text-center';
             } else {
-                // This will show if the backend returns an error (like Comprehend failing)
-                alert("Error from Backend: " + (data.error || "Unknown Error"));
+                alert("Backend Error: " + (data.error || "Unknown Error"));
             }
         } catch (error) {
-            console.error(error);
+            console.error("Fetch error:", error);
             alert("Failed to connect to backend. Is it running?");
         }
     }

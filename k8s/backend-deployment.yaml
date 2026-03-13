@@ -23,13 +23,16 @@ spec:
         - name: DB_HOST
           value: "terraform-20260313110452607000000001.ctwcgyikc1n3.eu-north-1.rds.amazonaws.com"
         - name: DB_USER
-          value: "postgres" # Check if this matches your Terraform DB username
-        - name: DB_PASSWORD
-          value: "Password123!" # Check if this matches your Terraform DB password
+          value: "dbadmin" # Matches main.tf
         - name: DB_NAME
-          value: "feedback_db" # Check if this matches your Terraform DB name
+          value: "feedbackdb" # Matches main.tf
         - name: DB_PORT
           value: "5432"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret # Reads securely from your secret.yaml!
+              key: password
         # -------------------------------
 ---
 # 2. The Service
