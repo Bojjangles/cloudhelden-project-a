@@ -14,7 +14,7 @@ app.use(bodyParser.json());
 
 // Initialize AWS Comprehend
 const comprehend = new ComprehendClient({ 
-    region: "eu-north-1",
+    region: "eu-central-1",
     useFipsEndpoint: false
 });
 
