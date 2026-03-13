@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: project-a-backend
 spec:
-  replicas: 2 # We have 2 nodes, let's run 1 copy on each!
+  replicas: 2 
   selector:
     matchLabels:
       app: backend
@@ -18,9 +18,21 @@ spec:
         image: 378607873661.dkr.ecr.eu-north-1.amazonaws.com/project-a-backend:latest
         ports:
         - containerPort: 3000
-
+        # --- THIS IS THE NEW SECTION ---
+        env:
+        - name: DB_HOST
+          value: "terraform-20260313110452607000000001.ctwcgyikc1n3.eu-north-1.rds.amazonaws.com"
+        - name: DB_USER
+          value: "postgres" # Check if this matches your Terraform DB username
+        - name: DB_PASSWORD
+          value: "Password123!" # Check if this matches your Terraform DB password
+        - name: DB_NAME
+          value: "feedback_db" # Check if this matches your Terraform DB name
+        - name: DB_PORT
+          value: "5432"
+        # -------------------------------
 ---
-# 2. The Service (Creates the Load Balancer)
+# 2. The Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -31,5 +43,5 @@ spec:
     app: backend
   ports:
     - protocol: TCP
-      port: 80       # The public port on the internet
-      targetPort: 3000 # The port your Node.js app is listening on
+      port: 80       
+      targetPort: 3000

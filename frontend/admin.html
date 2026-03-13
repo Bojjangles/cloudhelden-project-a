@@ -68,7 +68,7 @@ if (!token) {
     async function loadData() {
         try {
             // 1. Fetch data from your backend
-            const response = await fetch('http://afbf19c2291b34ca5ba9116f0585dc23-435788771.eu-north-1.elb.amazonaws.com/api/feedback');
+            const response = await fetch('/api/feedback');
             const data = await response.json();
 
             // 2. Calculate Stats
