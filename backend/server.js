@@ -4,82 +4,89 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { ComprehendClient, DetectSentimentCommand, DetectKeyPhrasesCommand } = require("@aws-sdk/client-comprehend");
+const { Pool } = require('pg'); // PostgreSQL client for RDS
 
 const app = express();
 const port = 3000;
 
-// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
-// Initialize AWS Comprehend Client
-// It automatically looks for credentials in your ~/.aws/credentials file!
-const comprehend = new ComprehendClient({ region: "eu-central-1" }); 
+// Initialize AWS Comprehend
+const comprehend = new ComprehendClient({ region: "eu-north-1" }); 
 
-// In-memory "Database" (Just for today!)
-const feedbackStore = [];
-
-// Route 1: The "Hello" check
-app.get('/', (req, res) => {
-    res.send('Backend is running and ready to analyze emotions! 🚀');
+// Initialize PostgreSQL Pool using Environment Variables
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER || 'dbadmin',
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'feedbackdb',
+  port: 5432,
 });
 
-// Route 2: Receive Feedback & Analyze Sentiment + Keywords
-app.post('/api/feedback', async (req, res) => {
-    const { text } = req.body;
-
-    if (!text) {
-        return res.status(400).json({ error: "Please provide some text!" });
-    }
-
-    console.log(`Analyzing: "${text}"...`);
-
+// Database Initialization
+const initDb = async () => {
     try {
-        // 1. Ask AWS: "How does this text feel?"
-        const sentimentCommand = new DetectSentimentCommand({
-            LanguageCode: "en", // or "de" for German
-            Text: text
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS feedback (
+                id SERIAL PRIMARY KEY,
+                text TEXT,
+                sentiment TEXT,
+                keywords TEXT,
+                timestamp TEXT
+            )
+        `);
+        console.log("RDS Database connected and table verified.");
+    } catch (err) {
+        console.error("Database connection error:", err);
+    }
+};
+initDb();
+
+app.get('/', (req, res) => {
+    res.send('Backend is running and connected to RDS! 🚀');
+});
+
+// Submit Feedback
+app.post('/api/feedback', async (req, res) => {
+    try {
+        const text = req.body.text;
+        if (!text) return res.status(400).json({ error: "Text is required" });
+
+        // 1. AI Analysis
+        const sentimentResponse = await comprehend.send(new DetectSentimentCommand({ Text: text, LanguageCode: "en" }));
+        const keywordResponse = await comprehend.send(new DetectKeyPhrasesCommand({ Text: text, LanguageCode: "en" }));
+        
+        const sentiment = sentimentResponse.Sentiment;
+        const keywords = keywordResponse.KeyPhrases.map(kp => kp.Text);
+
+        // 2. Save to RDS
+        const timestamp = new Date().toISOString();
+        const sql = `INSERT INTO feedback (text, sentiment, keywords, timestamp) VALUES ($1, $2, $3, $4) RETURNING id`;
+        const result = await pool.query(sql, [text, sentiment, JSON.stringify(keywords), timestamp]);
+
+        res.json({
+            success: true,
+            data: { id: result.rows[0].id, text, sentiment, keywords, timestamp }
         });
-        const sentimentResponse = await comprehend.send(sentimentCommand);
-
-        // 2. Ask AWS: "What are the keywords/phrases?"
-        const keyPhrasesCommand = new DetectKeyPhrasesCommand({
-            LanguageCode: "en",
-            Text: text
-        });
-        const keyPhrasesResponse = await comprehend.send(keyPhrasesCommand);
-
-        // Extract just the text of the keywords into a clean array
-        const keywords = keyPhrasesResponse.KeyPhrases.map(phrase => phrase.Text);
-
-        // 3. Create the record
-        const feedbackEntry = {
-            id: Date.now(),
-            text: text,
-            sentiment: sentimentResponse.Sentiment, // POSITIVE, NEGATIVE, NEUTRAL, MIXED
-            confidence: sentimentResponse.SentimentScore,
-            keywords: keywords,
-            timestamp: new Date()
-        };
-
-        // 4. Save to our "fake" database
-        feedbackStore.push(feedbackEntry);
-
-        console.log("Result:", sentimentResponse.Sentiment, "| Keywords:", keywords);
-        res.json({ success: true, data: feedbackEntry });
-
     } catch (error) {
-        console.error("AWS Error:", error);
-        res.status(500).json({ error: "Failed to analyze sentiment", details: error.message });
+        console.error("Error:", error);
+        res.status(500).json({ error: "Processing failed", details: error.message });
     }
 });
 
-// Route 3: Get all feedback (for the Admin Dashboard later)
-app.get('/api/feedback', (req, res) => {
-    res.json(feedbackStore);
+// Get Feedback for Admin Dashboard
+app.get('/api/feedback', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM feedback ORDER BY id DESC`);
+        const formattedRows = result.rows.map(row => ({
+            ...row,
+            keywords: JSON.parse(row.keywords)
+        }));
+        res.json(formattedRows);
+    } catch (err) {
+        res.status(500).json({ error: "Database fetch failed" });
+    }
 });
 
-// Start the server
-app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
-});
+app.listen(port, () => console.log(`Server listening on port ${port}`));
