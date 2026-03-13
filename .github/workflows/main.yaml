@@ -11,19 +11,23 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. TEST [cite: 93]
+      # 1. TEST
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-      
+
       - name: Install Dependencies
-        run: cd backend && npm install
+        run: |
+          cd backend
+          npm install
 
       - name: Run Unit Tests
-        [cite_start]run: cd backend && npm test # PDF requires at least 5 tests 
+        run: |
+          cd backend
+          npm test
 
-# 2. BUILD & PUSH
+      # 2. BUILD & PUSH
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -39,21 +43,20 @@ jobs:
       - name: Build and Push Images
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          [cite_start]IMAGE_TAG: ${{ github.sha }} # Use Commit SHA as required [cite: 97]
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/project-a-backend:$IMAGE_TAG ./backend
           docker push $ECR_REGISTRY/project-a-backend:$IMAGE_TAG
           docker build -t $ECR_REGISTRY/project-a-frontend:$IMAGE_TAG ./frontend
           docker push $ECR_REGISTRY/project-a-frontend:$IMAGE_TAG
 
-      # 3. DEPLOY [cite: 100]
+      # 3. DEPLOY
       - name: Update Kubeconfig
         run: aws eks update-kubeconfig --name project-a-cluster --region eu-north-1
 
       - name: Deploy to EKS
         run: |
-          # Replace image tags in manifests with the current SHA [cite: 97]
           sed -i "s|image:.*project-a-backend:.*|image: ${{ steps.login-ecr.outputs.registry }}/project-a-backend:${{ github.sha }}|g" k8s/backend-deployment.yaml
           sed -i "s|image:.*project-a-frontend:.*|image: ${{ steps.login-ecr.outputs.registry }}/project-a-frontend:${{ github.sha }}|g" k8s/frontend-deployment.yaml
           kubectl apply -f k8s/
-          kubectl rollout status deployment/project-a-backend --timeout=120s # [cite: 101]
+          kubectl rollout status deployment/project-a-backend --timeout=120s
