@@ -109,3 +109,104 @@ resource "aws_security_group" "rds_sg" {
 output "rds_endpoint" {
   value = aws_db_instance.postgres.endpoint
 }
+# ======================================================================
+# CLOUDFRONT & ACM (Global CDN and SSL)
+# ======================================================================
+
+# 1. Provide an alias for us-east-1 (Mandatory for CloudFront ACM certificates)
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
+# Variables for the DNS setup
+variable "domain_name" {
+  description = "The assigned subdomain from the teacher"
+  type        = string
+  default     = "name.cloudhelden-projekte.de" 
+}
+
+variable "alb_dns_name" {
+  description = "The AWS Load Balancer URL created by Kubernetes"
+  type        = string
+  default     = "k8s-default-projecta-xxx.eu-north-1.elb.amazonaws.com"
+}
+
+# 2. The ACM Certificate (Forced to us-east-1 via the provider alias)
+resource "aws_acm_certificate" "cloudfront_cert" {
+  provider          = aws.us_east_1
+  domain_name       = var.domain_name
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# 3. The CloudFront Distribution
+resource "aws_cloudfront_distribution" "cdn" {
+  enabled             = true
+  is_ipv6_enabled     = true
+  aliases             = [var.domain_name]
+
+  origin {
+    domain_name = var.alb_dns_name
+    origin_id   = "alb-origin"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only" # Required: HTTPS only
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  # API Cache Behavior (Required: Deactivate caching for /api/* with TTL=0)
+  ordered_cache_behavior {
+    path_pattern           = "/api/*"
+    target_origin_id       = "alb-origin"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+
+    min_ttl     = 0
+    default_ttl = 0 # TTL=0 ensures the backend API is always hit
+    max_ttl     = 0
+
+    forwarded_values {
+      query_string = true
+      headers      = ["Host"] # Required: Forward Host Header
+      cookies {
+        forward = "all"
+      }
+    }
+  }
+
+  # Default Cache Behavior (For frontend HTML/CSS/JS)
+  default_cache_behavior {
+    target_origin_id       = "alb-origin"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = true
+      headers      = ["Host"] 
+      cookies {
+        forward = "all"
+      }
+    }
+  }
+
+  viewer_certificate {
+    acm_certificate_arn      = aws_acm_certificate.cloudfront_cert.arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+}

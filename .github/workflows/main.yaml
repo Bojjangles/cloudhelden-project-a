@@ -62,3 +62,4 @@ jobs:
           sed -i "s|image:.*project-a-frontend:.*|image: ${{ steps.login-ecr.outputs.registry }}/project-a-frontend:${{ github.sha }}|g" k8s/frontend-deployment.yaml
           kubectl apply -f k8s/
           kubectl rollout status deployment/project-a-backend --timeout=120s
+          kubectl rollout status deployment/project-a-frontend --timeout=120s
